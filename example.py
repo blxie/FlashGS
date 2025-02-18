@@ -2,9 +2,9 @@ import torch
 import flash_gaussian_splatting
 
 import os
-import sys
 import json
 import time
+import argparse
 
 
 class Scene:
@@ -28,11 +28,18 @@ class Scene:
 
 
 class Camera:
-    def __init__(self, camera_json):
+    def __init__(self, camera_json, resolution=None):
         self.id = camera_json['id']
         self.img_name = camera_json['img_name']
-        self.width = camera_json['width']
-        self.height = camera_json['height']
+
+        if resolution:
+            self.width, self.height = resolution
+        else:
+            self.width, self.height = camera_json['width'], camera_json['height']
+
+        self.width_from_json = camera_json['width']
+        self.height_from_json = camera_json['height']
+
         self.position = torch.tensor(camera_json['position'])
         self.rotation = torch.tensor(camera_json['rotation'])
         self.focal_x = camera_json['fx']
@@ -69,6 +76,7 @@ class Rasterizer:
         self.curr_offset.fill_(0)
         flash_gaussian_splatting.ops.preprocess(scene.position, scene.shs, scene.opacity, scene.cov3d,
                                                 camera.width, camera.height, 16, 16,
+                                                camera.width_from_json, camera.height_from_json,
                                                 camera.position, camera.rotation,
                                                 camera.focal_x, camera.focal_y, camera.zFar, camera.zNear,
                                                 self.points_xy, self.rgb_depth, self.conic_opacity,
@@ -102,7 +110,7 @@ def savePpm(image, path):
         f.write(b'P6\n' + f'{image.size(1)} {image.size(0)}\n255\n'.encode() + image.numpy().tobytes())
 
 
-def render_scene(model_path, test_performance=False):
+def render_scene(model_path, test_performance=False, **kwargs):
     scene_path = os.path.join(model_path, "point_cloud", "iteration_30000", "point_cloud.ply")
     print(scene_path)
     camera_path = os.path.join(model_path, "cameras.json")
@@ -124,7 +132,7 @@ def render_scene(model_path, test_performance=False):
     MAX_NUM_TILES = 2 ** 20
     rasterizer = Rasterizer(scene, MAX_NUM_RENDERED, MAX_NUM_TILES)
     for camera_json in cameras_json:
-        camera = Camera(camera_json)
+        camera = Camera(camera_json, resolution=kwargs.get("resolution"))
         print("image name = %s" % camera.img_name)
 
         image = rasterizer.forward(scene, camera, bg_color)  # warm up
@@ -144,12 +152,27 @@ def render_scene(model_path, test_performance=False):
         savePpm(image, image_path)
 
 
+def parse_resolution(resolution_str):
+    try:
+        width, height = map(int, resolution_str.split('x'))
+        return (width, height)
+    except:
+        raise argparse.ArgumentTypeError('Resolution must be in format WIDTHxHEIGHT (e.g. 1920x1080)')
+
+
 if __name__ == "__main__":
-    if len(sys.argv) >= 2:
-        model_path = sys.argv[1]
-        render_scene(model_path, True)
+    parser = argparse.ArgumentParser(description='3D Gaussian Splatting Renderer')
+    parser.add_argument('--model', type=str, help='Path to single model')
+    parser.add_argument('--models_dir', type=str, default="./models",
+                         help='Directory containing multiple models')
+    parser.add_argument('--resolution', type=parse_resolution,
+                         help='Custom resolution in format WIDTHxHEIGHT (e.g. 1920x1080)')
+
+    args = parser.parse_args()
+
+    if args.model:
+        render_scene(args.model, True, resolution=args.resolution)
     else:
-        models_path = "D:\\models"  # https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/datasets/pretrained/models.zip
-        for entry in os.scandir(models_path):
+        for entry in os.scandir(args.models_dir):
             if entry.is_dir():
-                render_scene(entry.path)
+                render_scene(entry.path, resolution=args.resolution)

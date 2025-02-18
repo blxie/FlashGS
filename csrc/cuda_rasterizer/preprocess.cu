@@ -452,6 +452,7 @@ glm::mat4 getProjectionMatrix(int width, int height, glm::vec3 position, glm::ma
 void preprocess(int P,
 	glm::vec3* positions, shs_deg3_t* shs, float* opacities, cov3d_t* cov3Ds,
 	int width, int height, int block_x, int block_y,
+    int width_from_json, int height_from_json,
 	glm::vec3 cam_position, glm::mat3 cam_rotation,
 	float focal_x, float focal_y, float zFar, float zNear,
 	float2* points_xy, float4* rgb_depth, float4* conic_opacity,
@@ -461,9 +462,10 @@ void preprocess(int P,
 	dim3 grid((width + block_x - 1) / block_x, (height + block_y - 1) / block_y, 1);
 
 	glm::mat4 view_matrix = getViewMatrix(cam_position, cam_rotation);
-	glm::mat4 proj_matrix = getProjectionMatrix(width, height, cam_position, cam_rotation, focal_x, focal_y, zFar, zNear);
-	float tan_fovx = width / (2.0f * focal_x);
-	float tan_fovy = height / (2.0f * focal_y);
+    glm::mat4 proj_matrix = getProjectionMatrix(width_from_json, height_from_json,
+                                                cam_position, cam_rotation, focal_x, focal_y, zFar, zNear);
+    float tan_fovx = width_from_json / (2.0f * focal_x);
+    float tan_fovy = height_from_json / (2.0f * focal_y);
 
 	preprocessCUDA<<<(P + 127) / 128, dim3(8, 4, 4), 0, stream>>>(
 		P,

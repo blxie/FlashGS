@@ -32,6 +32,7 @@ union shs_deg3_t
 void preprocess(int P,
 	glm::vec3* positions, shs_deg3_t* shs, float* opacities, cov3d_t* cov3Ds,
 	int width, int height, int block_x, int block_y,
+    int width_from_json, int height_from_json,
 	glm::vec3 cam_position, glm::mat3 cam_rotation,
 	float focal_x, float focal_y, float zFar, float zNear,
 	float2* points_xy, float4* rgb_depth, float4* conic_opacity,
